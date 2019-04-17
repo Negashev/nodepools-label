@@ -3,24 +3,27 @@ import os
 import re
 
 from kubernetes_asyncio import client, config, watch
+from kubernetes_asyncio.config.kube_config import FileOrData
 
 NODEPOOLS = {}
+CLUSTERS = {}
 NODEPOOL_LABEL = os.getenv('NODEPOOL_LABEL', 'cattle.io/nodepool')
 
 
 async def set_label(obj, hostnamePrefix):
     global NODEPOOL_LABEL
+    global CLUSTERS
     if NODEPOOL_LABEL in obj['status']['nodeLabels']:
         if obj['status']['nodeLabels'][NODEPOOL_LABEL] == hostnamePrefix:
             return
-    del obj['status']
-    del obj['metadata']['creationTimestamp']
-    del obj['metadata']['resourceVersion']
-    obj['metadata']['labels'][NODEPOOL_LABEL] = hostnamePrefix
+    # connect to cluster for this node
+    configuration = client.Configuration()
+    configuration.host = CLUSTERS[obj['metadata']['namespace']]['apiEndpoint']
+    configuration.ssl_ca_cert = FileOrData({'certificate-authority': CLUSTERS[obj['metadata']['namespace']]['caCert']},
+                                           'certificate-authority', data_key_name='certificate-authority').as_file()
+    configuration.api_key = {"authorization": "Bearer " + CLUSTERS[obj['metadata']['namespace']]['serviceAccountToken']}
+    client.Configuration.set_default(configuration)
     v1 = client.CoreV1Api()
-    # switch to cluster
-    k8s_clusters_url = v1.api_client.configuration.host.rsplit('/', 1)[0]
-    v1.api_client.configuration.host = k8s_clusters_url + '/' + obj['metadata']['namespace']
     body = {
         "metadata": {
             "labels": {
@@ -74,18 +77,64 @@ async def simple_watch_nodepools():
     NODEPOOLS = this_nodepools
 
 
+async def watch_clusters():
+    global CLUSTERS
+    while True:
+        this_clusters = {}
+        v1 = client.CustomObjectsApi()
+        async with watch.Watch().stream(v1.list_cluster_custom_object, "management.cattle.io", "v3",
+                                        "clusters") as stream:
+            async for event in stream:
+                evt, obj = event['type'], event['object']
+                if obj['metadata']['name'] == 'local':
+                    continue
+                cluster_id = obj['metadata']['name']
+                credentials = {
+                    'apiEndpoint': obj['status']['apiEndpoint'],
+                    'caCert': obj['status']['caCert'],
+                    'serviceAccountToken': obj['status']['serviceAccountToken'],
+                }
+                this_clusters[cluster_id] = credentials
+                CLUSTERS[cluster_id] = credentials
+        CLUSTERS = this_clusters
+
+
+async def simple_watch_clusters():
+    global CLUSTERS
+    this_clusters = {}
+    v1 = client.CustomObjectsApi()
+    async with watch.Watch().stream(v1.list_cluster_custom_object, "management.cattle.io", "v3", "clusters",
+                                    timeout_seconds=10) as stream:
+        async for event in stream:
+            evt, obj = event['type'], event['object']
+            if obj['metadata']['name'] == 'local':
+                continue
+            cluster_id = obj['metadata']['name']
+            credentials = {
+                'apiEndpoint': obj['status']['apiEndpoint'],
+                'caCert': obj['status']['caCert'],
+                'serviceAccountToken': obj['status']['serviceAccountToken'],
+            }
+            this_clusters[cluster_id] = credentials
+            CLUSTERS[cluster_id] = credentials
+    CLUSTERS = this_clusters
+
+
 def main():
     loop = asyncio.get_event_loop()
 
     # Load the kubeconfig file specified in the KUBECONFIG environment
     # variable, or fall back to `~/.kube/config`.
-    loop.run_until_complete(config.load_incluster_config())
+    config.load_incluster_config()
+    # loop.run_until_complete(config.load_kube_config())
+    loop.run_until_complete(simple_watch_clusters())
     loop.run_until_complete(simple_watch_nodepools())
 
     # Define the tasks to watch namespaces and pods.
     tasks = [
         asyncio.ensure_future(watch_nodes()),
-        asyncio.ensure_future(watch_nodepools())
+        asyncio.ensure_future(watch_nodepools()),
+        asyncio.ensure_future(watch_clusters())
     ]
 
     # Push tasks into event loop.
