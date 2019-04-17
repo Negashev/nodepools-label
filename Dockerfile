@@ -11,6 +11,6 @@ RUN apk add --no-cache --virtual .build-deps \
 	&& apk del .build-deps \
 	&& rm -rf /var/cache/apk/*
 
-CMD ["python3", "-um", "run.py"]
+CMD ["python3", "-u", "run.py"]
 
 ADD *.py /src/
