@@ -1,0 +1,15 @@
+questions:
+  - variable: serviceAccountName
+    default: "rancher"
+    description: "Enter serviceAccountName for rancher service"
+    type: string
+    label: "Service Account"
+    group: "Access to rancher"
+    required: true
+  - variable: nodepoollabel
+    default: "cattle.io/nodepool"
+    description: "This will by label key"
+    type: string
+    label: "Label key"
+    group: "Node Pools configuration"
+    required: true

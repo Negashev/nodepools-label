@@ -1,0 +1,5 @@
+Nodepools-label server has been installed.
+
+Pool label key {{ .Values.nodepoollabel }}
+
+Happy Labeling!
