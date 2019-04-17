@@ -31,19 +31,24 @@ async def set_label(obj, hostnamePrefix):
         }
     }
     print(f"set {NODEPOOL_LABEL}={hostnamePrefix} for node {obj['spec']['requestedHostname']}")
-    await v1.patch_node(obj['spec']['requestedHostname'], body)
+    await v1.patch_node(obj['spec']['requestedHostname'], body, _request_timeout=30)
 
 
 async def watch_nodes():
     global NODEPOOLS
     while True:
         v1 = client.CustomObjectsApi()
-        async with watch.Watch().stream(v1.list_cluster_custom_object, "management.cattle.io", "v3", "nodes") as stream:
+        async with watch.Watch().stream(v1.list_cluster_custom_object, "management.cattle.io", "v3", "nodes",
+                                        timeout_seconds=60) as stream:
             async for event in stream:
                 evt, obj = event['type'], event['object']
                 if obj['spec']['nodePoolName'] and obj['spec']['nodePoolName'] in NODEPOOLS and evt in ["ADDED",
                                                                                                         "MODIFIED"]:
-                    await set_label(obj, NODEPOOLS[obj['spec']['nodePoolName']])
+                    try:
+                        await set_label(obj, NODEPOOLS[obj['spec']['nodePoolName']])
+                    except Exception as e:
+                        # can't wait
+                        print(f"Wait pool {obj['spec']['nodePoolName']}")
 
 
 async def watch_nodepools():
@@ -52,7 +57,7 @@ async def watch_nodepools():
         this_nodepools = {}
         v1 = client.CustomObjectsApi()
         async with watch.Watch().stream(v1.list_cluster_custom_object, "management.cattle.io", "v3",
-                                        "nodepools") as stream:
+                                        "nodepools", timeout_seconds=60) as stream:
             async for event in stream:
                 evt, obj = event['type'], event['object']
                 nodepool_id = f"{obj['metadata']['namespace']}:{obj['metadata']['name']}"
@@ -83,19 +88,22 @@ async def watch_clusters():
         this_clusters = {}
         v1 = client.CustomObjectsApi()
         async with watch.Watch().stream(v1.list_cluster_custom_object, "management.cattle.io", "v3",
-                                        "clusters") as stream:
+                                        "clusters", timeout_seconds=60) as stream:
             async for event in stream:
                 evt, obj = event['type'], event['object']
                 if obj['metadata']['name'] == 'local':
                     continue
                 cluster_id = obj['metadata']['name']
-                credentials = {
-                    'apiEndpoint': obj['status']['apiEndpoint'],
-                    'caCert': obj['status']['caCert'],
-                    'serviceAccountToken': obj['status']['serviceAccountToken'],
-                }
-                this_clusters[cluster_id] = credentials
-                CLUSTERS[cluster_id] = credentials
+                try:
+                    credentials = {
+                        'apiEndpoint': obj['status']['apiEndpoint'],
+                        'caCert': obj['status']['caCert'],
+                        'serviceAccountToken': obj['status']['serviceAccountToken'],
+                    }
+                    this_clusters[cluster_id] = credentials
+                    CLUSTERS[cluster_id] = credentials
+                except Exception as e:
+                    print(f"Wait cluster {cluster_id}")
         CLUSTERS = this_clusters
 
 
@@ -110,13 +118,16 @@ async def simple_watch_clusters():
             if obj['metadata']['name'] == 'local':
                 continue
             cluster_id = obj['metadata']['name']
-            credentials = {
-                'apiEndpoint': obj['status']['apiEndpoint'],
-                'caCert': obj['status']['caCert'],
-                'serviceAccountToken': obj['status']['serviceAccountToken'],
-            }
-            this_clusters[cluster_id] = credentials
-            CLUSTERS[cluster_id] = credentials
+            try:
+                credentials = {
+                    'apiEndpoint': obj['status']['apiEndpoint'],
+                    'caCert': obj['status']['caCert'],
+                    'serviceAccountToken': obj['status']['serviceAccountToken'],
+                }
+                this_clusters[cluster_id] = credentials
+                CLUSTERS[cluster_id] = credentials
+            except Exception as e:
+                print(f"Wait cluster {cluster_id}")
     CLUSTERS = this_clusters
 
 
