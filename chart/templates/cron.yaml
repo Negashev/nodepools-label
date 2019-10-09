@@ -15,35 +15,36 @@ spec:
       template:
         spec:
         {{- with .Values.affinity }}
-        affinity:
-          {{- toYaml . | nindent 8 }}
+          affinity:
+            {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- with .Values.tolerations }}
-        tolerations:
-          {{- toYaml . | nindent 8 }}
+          tolerations:
+            {{- toYaml . | nindent 8 }}
         {{- end }}
-        containers:
-          - args:
-              - python3
-              - -u
-              - run.py
-            image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-            imagePullPolicy: {{ .Values.image.pullPolicy }}
-            name: {{ .Chart.Name }}
-            resources:
-              {{- toYaml .Values.resources | nindent 14 }}
-            stdin: true
-            terminationMessagePath: /dev/termination-log
-            terminationMessagePolicy: File
-            tty: true
-            env:
-              - name: NODEPOOL_LABEL
-                value: "{{ .Values.nodepoollabel }}"
-        dnsPolicy: ClusterFirst
-        restartPolicy: Never
-        schedulerName: default-scheduler
-        securityContext: {}
-        terminationGracePeriodSeconds: 30
-  schedule: {{ .Values.schedule }}
+          serviceAccountName: {{ .Values.serviceAccountName }}
+          containers:
+            - args:
+                - python3
+                - -u
+                - run.py
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              name: {{ .Chart.Name }}
+              resources:
+                {{- toYaml .Values.resources | nindent 14 }}
+              stdin: true
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+              tty: true
+              env:
+                - name: NODEPOOL_LABEL
+                  value: "{{ .Values.nodepoollabel }}"
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          schedulerName: default-scheduler
+          securityContext: {}
+          terminationGracePeriodSeconds: 30
+  schedule: "{{ .Values.schedule }}"
   successfulJobsHistoryLimit: 10
   suspend: false
