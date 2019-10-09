@@ -2,7 +2,7 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 1
+schedule: "*/2 * * * *"
 serviceAccountName: rancher
 nodepoollabel: cattle.io/nodepool
 image:

@@ -34,47 +34,6 @@ async def set_label(obj, hostnamePrefix):
     await v1.patch_node(obj['spec']['requestedHostname'], body, _request_timeout=30)
 
 
-async def watch_nodes():
-    global NODEPOOLS
-    while True:
-        try:
-            v1 = client.CustomObjectsApi()
-            async with watch.Watch().stream(v1.list_cluster_custom_object, "management.cattle.io", "v3", "nodes",
-                                            timeout_seconds=60) as stream:
-                async for event in stream:
-                    evt, obj = event['type'], event['object']
-                    if obj['spec']['nodePoolName'] and obj['spec']['nodePoolName'] in NODEPOOLS and evt in ["ADDED",
-                                                                                                            "MODIFIED"]:
-                        try:
-                            await set_label(obj, NODEPOOLS[obj['spec']['nodePoolName']])
-                        except Exception as e:
-                            # can't wait
-                            print(f"Wait pool {obj['spec']['nodePoolName']}")
-        except Exception as e:
-            print(f'watch_nodes: {e}')
-            await asyncio.sleep(10)
-
-
-async def watch_nodepools():
-    global NODEPOOLS
-    while True:
-        this_nodepools = {}
-        try:
-            v1 = client.CustomObjectsApi()
-            async with watch.Watch().stream(v1.list_cluster_custom_object, "management.cattle.io", "v3",
-                                            "nodepools", timeout_seconds=60) as stream:
-                async for event in stream:
-                    evt, obj = event['type'], event['object']
-                    nodepool_id = f"{obj['metadata']['namespace']}:{obj['metadata']['name']}"
-                    hostnamePrefix = re.sub(r'([-_.])$', '', obj['spec']['hostnamePrefix'])
-                    this_nodepools[nodepool_id] = hostnamePrefix
-                    NODEPOOLS[nodepool_id] = hostnamePrefix
-        except Exception as e:
-            print(f'watch_nodepools: {e}')
-            await asyncio.sleep(10)
-        NODEPOOLS = this_nodepools
-
-
 async def simple_watch_nodepools():
     global NODEPOOLS
     this_nodepools = {}
@@ -88,35 +47,6 @@ async def simple_watch_nodepools():
             this_nodepools[nodepool_id] = hostnamePrefix
             NODEPOOLS[nodepool_id] = hostnamePrefix
     NODEPOOLS = this_nodepools
-
-
-async def watch_clusters():
-    global CLUSTERS
-    while True:
-        this_clusters = {}
-        try:
-            v1 = client.CustomObjectsApi()
-            async with watch.Watch().stream(v1.list_cluster_custom_object, "management.cattle.io", "v3",
-                                            "clusters", timeout_seconds=60) as stream:
-                async for event in stream:
-                    evt, obj = event['type'], event['object']
-                    if obj['metadata']['name'] == 'local':
-                        continue
-                    cluster_id = obj['metadata']['name']
-                    try:
-                        credentials = {
-                            'apiEndpoint': obj['status']['apiEndpoint'],
-                            'caCert': obj['status']['caCert'],
-                            'serviceAccountToken': obj['status']['serviceAccountToken'],
-                        }
-                        this_clusters[cluster_id] = credentials
-                        CLUSTERS[cluster_id] = credentials
-                    except Exception as e:
-                        print(f"Wait cluster {cluster_id}")
-        except Exception as e:
-            print(f'watch_clusters: {e}')
-            await asyncio.sleep(10)
-        CLUSTERS = this_clusters
 
 
 async def simple_watch_clusters():
@@ -143,6 +73,21 @@ async def simple_watch_clusters():
     CLUSTERS = this_clusters
 
 
+async def simple_watch_nodes():
+    global NODEPOOLS
+    this_nodepools = {}
+    v1 = client.CustomObjectsApi()
+    async with watch.Watch().stream(v1.list_cluster_custom_object, "management.cattle.io", "v3",
+                                    "nodepools", timeout_seconds=60) as stream:
+        async for event in stream:
+            evt, obj = event['type'], event['object']
+            nodepool_id = f"{obj['metadata']['namespace']}:{obj['metadata']['name']}"
+            hostnamePrefix = re.sub(r'([-_.])$', '', obj['spec']['hostnamePrefix'])
+            this_nodepools[nodepool_id] = hostnamePrefix
+            NODEPOOLS[nodepool_id] = hostnamePrefix
+    NODEPOOLS = this_nodepools
+
+
 def main():
     loop = asyncio.get_event_loop()
 
@@ -150,18 +95,10 @@ def main():
     # variable, or fall back to `~/.kube/config`.
     config.load_incluster_config()
     # loop.run_until_complete(config.load_kube_config())
+    loop.run_until_complete(simple_watch_nodes())
     loop.run_until_complete(simple_watch_clusters())
     loop.run_until_complete(simple_watch_nodepools())
 
-    # Define the tasks to watch namespaces and pods.
-    tasks = [
-        asyncio.ensure_future(watch_nodes()),
-        asyncio.ensure_future(watch_nodepools()),
-        asyncio.ensure_future(watch_clusters())
-    ]
-
-    # Push tasks into event loop.
-    loop.run_until_complete(asyncio.wait(tasks))
     loop.close()
 
 
