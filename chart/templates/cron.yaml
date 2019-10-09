@@ -31,9 +31,11 @@ spec:
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               name: {{ .Chart.Name }}
+              {{- with .Values.resources }}
               resources:
-                {{- toYaml .Values.resources | nindent 14 }}
+                {{- toYaml . | nindent 14 }}
               stdin: true
+              {{- end }}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
               tty: true
