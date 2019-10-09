@@ -51,7 +51,8 @@ async def watch_nodes():
                             # can't wait
                             print(f"Wait pool {obj['spec']['nodePoolName']}")
         except Exception as e:
-            print(e)
+            print(f'watch_nodes: {e}')
+            await asyncio.sleep(10)
 
 
 async def watch_nodepools():
@@ -69,7 +70,8 @@ async def watch_nodepools():
                     this_nodepools[nodepool_id] = hostnamePrefix
                     NODEPOOLS[nodepool_id] = hostnamePrefix
         except Exception as e:
-            print(e)
+            print(f'watch_nodepools: {e}')
+            await asyncio.sleep(10)
         NODEPOOLS = this_nodepools
 
 
@@ -112,7 +114,8 @@ async def watch_clusters():
                     except Exception as e:
                         print(f"Wait cluster {cluster_id}")
         except Exception as e:
-            print(e)
+            print(f'watch_clusters: {e}')
+            await asyncio.sleep(10)
         CLUSTERS = this_clusters
 
 
