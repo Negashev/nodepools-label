@@ -37,8 +37,8 @@ spec:
             terminationMessagePolicy: File
             tty: true
             env:
-                - name: NODEPOOL_LABEL
-                  value: "{{ .Values.nodepoollabel }}"
+              - name: NODEPOOL_LABEL
+                value: "{{ .Values.nodepoollabel }}"
         dnsPolicy: ClusterFirst
         restartPolicy: Never
         schedulerName: default-scheduler
