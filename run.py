@@ -95,9 +95,9 @@ def main():
     # variable, or fall back to `~/.kube/config`.
     config.load_incluster_config()
     # loop.run_until_complete(config.load_kube_config())
-    loop.run_until_complete(simple_watch_nodes())
     loop.run_until_complete(simple_watch_clusters())
     loop.run_until_complete(simple_watch_nodepools())
+    loop.run_until_complete(simple_watch_nodes())
 
     loop.close()
 
