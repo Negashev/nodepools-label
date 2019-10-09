@@ -75,17 +75,20 @@ async def simple_watch_clusters():
 
 async def simple_watch_nodes():
     global NODEPOOLS
-    this_nodepools = {}
     v1 = client.CustomObjectsApi()
-    async with watch.Watch().stream(v1.list_cluster_custom_object, "management.cattle.io", "v3",
-                                    "nodepools", timeout_seconds=60) as stream:
+    async with watch.Watch().stream(v1.list_cluster_custom_object, "management.cattle.io", "v3", "nodes",
+                                    timeout_seconds=10) as stream:
         async for event in stream:
             evt, obj = event['type'], event['object']
-            nodepool_id = f"{obj['metadata']['namespace']}:{obj['metadata']['name']}"
-            hostnamePrefix = re.sub(r'([-_.])$', '', obj['spec']['hostnamePrefix'])
-            this_nodepools[nodepool_id] = hostnamePrefix
-            NODEPOOLS[nodepool_id] = hostnamePrefix
-    NODEPOOLS = this_nodepools
+            if obj['spec']['nodePoolName'] and obj['spec']['nodePoolName'] in NODEPOOLS and evt in ["ADDED",
+                                                                                                    "MODIFIED"]:
+                try:
+                    await set_label(obj, NODEPOOLS[obj['spec']['nodePoolName']])
+                except Exception as e:
+                    # can't wait
+                    print(f"Wait pool {obj['spec']['nodePoolName']}")
+
+
 
 
 def main():
@@ -93,8 +96,8 @@ def main():
 
     # Load the kubeconfig file specified in the KUBECONFIG environment
     # variable, or fall back to `~/.kube/config`.
-    config.load_incluster_config()
-    # loop.run_until_complete(config.load_kube_config())
+    # config.load_incluster_config()
+    loop.run_until_complete(config.load_kube_config())
     loop.run_until_complete(simple_watch_clusters())
     loop.run_until_complete(simple_watch_nodepools())
     loop.run_until_complete(simple_watch_nodes())
