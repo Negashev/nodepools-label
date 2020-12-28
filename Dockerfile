@@ -6,7 +6,7 @@ RUN apk add --update python3
 
 ADD requirements.txt ./
 
-RUN apk add --no-cache --virtual .build-deps py3-pip \
+RUN apk add --no-cache --virtual .build-deps py3-pip build-base \
     && pip3 --no-cache install -r requirements.txt \
 	&& apk del .build-deps \
 	&& rm -rf /var/cache/apk/*
