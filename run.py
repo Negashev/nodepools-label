@@ -24,17 +24,6 @@ PREEMPTIBLE_LABEL = os.getenv('PREEMPTIBLE_LABEL', 'preemptible')
 async def set_label(obj, hostnamePrefix, preemptible):
     global NODEPOOL_LABEL
     global CLUSTERS
-    if NODEPOOL_LABEL in obj['status']['nodeLabels']:
-        if obj['status']['nodeLabels'][NODEPOOL_LABEL] == hostnamePrefix:
-            return
-    # connect to cluster for this node
-    configuration = client.Configuration()
-    configuration.host = CLUSTERS[obj['metadata']['namespace']]['apiEndpoint']
-    configuration.ssl_ca_cert = FileOrData({'certificate-authority': CLUSTERS[obj['metadata']['namespace']]['caCert']},
-                                           'certificate-authority', data_key_name='certificate-authority').as_file()
-    configuration.api_key = {"authorization": "Bearer " + CLUSTERS[obj['metadata']['namespace']]['serviceAccountToken']}
-    client.Configuration.set_default(configuration)
-    v1 = client.CoreV1Api()
     body = {
         "metadata": {
             "labels": {
@@ -44,22 +33,44 @@ async def set_label(obj, hostnamePrefix, preemptible):
     }
     if preemptible:
         # filter node if prepare-preemptible label not exist
-        print(obj['spec']['requestedHostname'])
+        if FILTER_PREEMPTIBLE_LABEL not in obj['status']['nodeLabels']:
+            return
         if PREEMPTIBLE_LABEL in obj['status']['nodeLabels']:
             return
         # add PREEMPTIBLE_LABEL if time WAIT_TIME_PREEMPTIBLE_LABEL
         calculate_time = datetime.datetime.strptime(obj['metadata']['creationTimestamp'],"%Y-%m-%dT%H:%M:%SZ") + datetime.timedelta(hours = WAIT_TIME_PREEMPTIBLE_LABEL)
         if calculate_time < datetime.datetime.now():
-            body["metadata"]["labels"][PREEMPTIBLE_LABEL] = "true"
-            body["spec"]["internalNodeSpec"]["taints"] = [
-                                                    {
-                                                        "effect": "NoSchedule",
-                                                        "key": datetime.datetime.now().strftime('%s'),
-                                                        "value": "preemptible"
-                                                    }
-                                                ]
+            body = {
+                "metadata": {
+                    "labels": {
+                        NODEPOOL_LABEL: hostnamePrefix,
+                        PREEMPTIBLE_LABEL: "true"
+                    }
+                },
+                "spec": {
+                    "taints": [
+                                  {
+                                      "effect": "NoSchedule",
+                                      "key": datetime.datetime.now().strftime('%s'),
+                                      "value": "preemptible"
+                                  }
+                              ]
+                }                 
+            }
             print(f"set {PREEMPTIBLE_LABEL}=true for node {obj['spec']['requestedHostname']}")
+    else:
+        if NODEPOOL_LABEL in obj['status']['nodeLabels']:
+            if obj['status']['nodeLabels'][NODEPOOL_LABEL] == hostnamePrefix:
+                return         
     print(f"set {NODEPOOL_LABEL}={hostnamePrefix} for node {obj['spec']['requestedHostname']}")
+    # connect to cluster for this node
+    configuration = client.Configuration()
+    configuration.host = CLUSTERS[obj['metadata']['namespace']]['apiEndpoint']
+    configuration.ssl_ca_cert = FileOrData({'certificate-authority': CLUSTERS[obj['metadata']['namespace']]['caCert']},
+                                           'certificate-authority', data_key_name='certificate-authority').as_file()
+    configuration.api_key = {"authorization": "Bearer " + CLUSTERS[obj['metadata']['namespace']]['serviceAccountToken']}
+    client.Configuration.set_default(configuration)
+    v1 = client.CoreV1Api()
     await v1.patch_node(obj['spec']['requestedHostname'], body, _request_timeout=30)
 
 
