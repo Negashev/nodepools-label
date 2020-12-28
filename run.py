@@ -44,6 +44,7 @@ async def set_label(obj, hostnamePrefix, preemptible):
     }
     if preemptible:
         # filter node if prepare-preemptible label not exist
+        print(obj['spec']['requestedHostname'])
         if PREEMPTIBLE_LABEL in obj['status']['nodeLabels']:
             return
         # add PREEMPTIBLE_LABEL if time WAIT_TIME_PREEMPTIBLE_LABEL
