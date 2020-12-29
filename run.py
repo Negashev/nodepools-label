@@ -33,35 +33,34 @@ async def set_label(obj, hostnamePrefix, preemptible):
     }
     if preemptible:
         # filter node if prepare-preemptible label not exist
-        if FILTER_PREEMPTIBLE_LABEL not in obj['status']['nodeLabels']:
-            return
-        if PREEMPTIBLE_LABEL in obj['status']['nodeLabels']:
-            return
-        # add PREEMPTIBLE_LABEL if time WAIT_TIME_PREEMPTIBLE_LABEL
-        calculate_time = datetime.datetime.strptime(obj['metadata']['creationTimestamp'],"%Y-%m-%dT%H:%M:%SZ") + datetime.timedelta(hours = WAIT_TIME_PREEMPTIBLE_LABEL)
-        if calculate_time < datetime.datetime.now():
-            body = {
-                "metadata": {
-                    "labels": {
-                        NODEPOOL_LABEL: hostnamePrefix,
-                        PREEMPTIBLE_LABEL: "true"
-                    }
-                },
-                "spec": {
-                    "taints": [
-                                  {
-                                      "effect": "NoSchedule",
-                                      "key": datetime.datetime.now().strftime('%s'),
-                                      "value": "preemptible"
-                                  }
-                              ]
-                }                 
-            }
-            print(f"set {PREEMPTIBLE_LABEL}=true for node {obj['spec']['requestedHostname']}")
-    else:
-        if NODEPOOL_LABEL in obj['status']['nodeLabels']:
-            if obj['status']['nodeLabels'][NODEPOOL_LABEL] == hostnamePrefix:
-                return         
+        if FILTER_PREEMPTIBLE_LABEL in obj['status']['nodeLabels']:
+            # preemptible exist
+            if PREEMPTIBLE_LABEL in obj['status']['nodeLabels']:
+                return
+            # add PREEMPTIBLE_LABEL if time WAIT_TIME_PREEMPTIBLE_LABEL
+            calculate_time = datetime.datetime.strptime(obj['metadata']['creationTimestamp'],"%Y-%m-%dT%H:%M:%SZ") + datetime.timedelta(hours = WAIT_TIME_PREEMPTIBLE_LABEL)
+            if calculate_time < datetime.datetime.now():
+                body = {
+                    "metadata": {
+                        "labels": {
+                            NODEPOOL_LABEL: hostnamePrefix,
+                            PREEMPTIBLE_LABEL: "true"
+                        }
+                    },
+                    "spec": {
+                        "taints": [
+                                      {
+                                          "effect": "NoSchedule",
+                                          "key": datetime.datetime.now().strftime('%s'),
+                                          "value": "preemptible"
+                                      }
+                                  ]
+                    }                 
+                }
+                print(f"set {PREEMPTIBLE_LABEL}=true for node {obj['spec']['requestedHostname']}")
+    elif NODEPOOL_LABEL in obj['status']['nodeLabels']:
+        if obj['status']['nodeLabels'][NODEPOOL_LABEL] == hostnamePrefix:
+            return         
     print(f"set {NODEPOOL_LABEL}={hostnamePrefix} for node {obj['spec']['requestedHostname']}")
     # connect to cluster for this node
     configuration = client.Configuration()
